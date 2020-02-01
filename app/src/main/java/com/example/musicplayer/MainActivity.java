@@ -1,5 +1,6 @@
 package com.example.musicplayer;
 
+import android.Manifest;
 import android.content.ComponentName;
 import android.content.Intent;
 import android.content.ServiceConnection;
@@ -11,11 +12,14 @@ import android.widget.Button;
 import android.widget.SeekBar;
 
 import androidx.appcompat.app.AppCompatActivity;
+import androidx.core.app.ActivityCompat;
+import androidx.core.content.ContextCompat;
 
 import com.example.musicplayer.interfaces.IPlayerControl;
 import com.example.musicplayer.interfaces.IPlayerViewControl;
 import com.example.musicplayer.services.PlayerService;
 
+import static android.content.pm.PackageManager.PERMISSION_GRANTED;
 import static com.example.musicplayer.interfaces.IPlayerControl.PLAY_STATE_PAUSE;
 import static com.example.musicplayer.interfaces.IPlayerControl.PLAY_STATE_PLAY;
 import static com.example.musicplayer.interfaces.IPlayerControl.PLAY_STATE_STOP;
@@ -33,23 +37,34 @@ public class MainActivity extends AppCompatActivity {
         @Override
         public void onPlayerStateChange(int state) {
             //根据播放状态来修改UI
-            switch (state){
+            switch (state) {
                 case PLAY_STATE_PLAY:
                     playOrPause.setText("pause");
                     break;
                 case PLAY_STATE_PAUSE:
+                    playOrPause.setText("play");
+                    break;
                 case PLAY_STATE_STOP:
                     playOrPause.setText("play");
+                    seekBar.setProgress(0);
                     break;
             }
         }
 
         @Override
-        public void onSeekChange(int seek) {
+        public void onSeekChange(final int seek) {
             //改变播放进度，当手触摸到进度条时不更新(避免抖动)
-            if (!isUserTouchProgressBar) {
-                seekBar.setProgress(seek);
-            }
+            //在Android里面有两个控件可以用子线程去更新
+            //一个是progressBar,另一个是surfaceView
+            //规范起见还是用runOnUiThread
+            runOnUiThread(new Runnable() {
+                @Override
+                public void run() {
+                    if (!isUserTouchProgressBar) {
+                        seekBar.setProgress(seek);
+                    }
+                }
+            });
         }
     };
     private ServiceConnection serviceConnection = new ServiceConnection() {
@@ -71,6 +86,10 @@ public class MainActivity extends AppCompatActivity {
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_main);
+        //动态申请权限
+        myRequestPermission();
+
+        //初始化控件和事件
         initView();
         initEvent();
 
@@ -78,6 +97,12 @@ public class MainActivity extends AppCompatActivity {
         initService();
         //绑定服务
         initBindService();
+    }
+
+    private void myRequestPermission() {
+        if (ContextCompat.checkSelfPermission(this, Manifest.permission.READ_EXTERNAL_STORAGE) != PERMISSION_GRANTED) {
+            ActivityCompat.requestPermissions(this, new String[]{Manifest.permission.READ_EXTERNAL_STORAGE}, 1);
+        }
     }
 
     private void initService() {
